@@ -1,2 +1,3 @@
-# code-abbey-docs
+# Code Abbey documentation
+
 Documentation for CodeAbbey web site.
