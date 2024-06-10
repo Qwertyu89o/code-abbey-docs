@@ -234,7 +234,7 @@ After switching from Termux to his favorite web browser and typing the address h
 Now let us create a basic web page for our site:
 
 ```
-(venv) ~/code-abbey/CodeAbbey $ python manage.py startapp polls
+(venv) ~/code-abbey/CodeAbbey $ python manage.py startapp app
 (venv) ~/code-abbey/CodeAbbey $ cd app
 (venv) ~/code-abbey/CodeAbbey/app $ nano views.py
 ```
@@ -299,3 +299,422 @@ It is a good time to submit current work to the repository:
 ```
 
 And here the end of June, 8th comes.
+
+# Sunday, June 9th, 2024
+## Publishing the web site to the Web
+
+Yesterday, Qwerty managed to create a basic web application using Django. Now he wants to make our web site available over internet, so we can be proud of our work.
+
+What he tried after some googling:
+
+1. Heroku: <https://www.heroku.com/> - got a strange message saying that "Cookies are required to sign up for and use the Heroku platform. Please enable cookies and try again.". Since Qwerty did not made anything to disable cookies, he feels very puzzled.
+2. Railway: <https://railway.app/> - after registration site requests to enter credit card number.
+3. Fly.io: <https://fly.io> - the same story, site requests to enter credit card number.
+4. Vercel: <https://vercel.com/> - there was no request for credit card number, but after deployment site responds with 404 error code and the docs did not explained why. Qwerty wished he could change something, but there was no deployment options on this site, or he failed to find these.
+5. Render: <https://render.com/> - here was more deployment options than on Vercel. Qwerty chose "Web service" option of platform, chose "Public Github repository" as source and filled in fields as follows:
+
+- Source Code: Qwertyu89o / code-abbey
+- Web service name: code-abbey
+- Region: Oregon (US West)
+- Branch: main
+- Root Directory: CodeAbbey
+- Runtime: Python 3
+- Build Command: pip install -r requirements.txt
+- Start Command: gunicorn CodeAbbey/wsgi.py
+- Instance Type: Free (The site requires users to wait for 1-2 minutes while it loads).
+
+Before that, he created **requirements.txt** at code-abbey repository, because there was no such file before (it was not needed to run Django on local machine yesterday).
+In that file, he added the following line:
+
+```
+Django==5.0.6
+```
+
+He liked all these live logs about Django install.
+However, the deployment process hang for a while and then failed with following lines:
+
+```
+==> Running 'gunicorn CodeAbbey/wsgi.py'
+bash: gunicorn: command not found
+```
+
+So Qwerty added one more line to requirements.txt:
+
+```
+gunicorn==22.0.0
+```
+
+Again a failure:
+
+```
+ModuleNotFoundError: No module named 'CodeAbbey/wsgi'
+ImportError: Failed to find application, did you mean 'CodeAbbey/wsgi:application'?
+```
+
+Qwerty changed start command to:
+
+```
+Start Command: gunicorn CodeAbbey/wsgi:application
+```
+
+Unfortunately, the `ModuleNotFoundError` persists, and Qwerty had no clue what happening, so he tried googling and found this Stack Overflow topic: <https://stackoverflow.com/questions/48121048/gunicorn-no-module-named-wsgi>
+
+In this topic, Slipstream suggests the following:
+
+> To change to the project folder you can use the command --chdir.
+
+So Qwerty changed the command accordingly:
+
+```
+Start Command: gunicorn --chdir CodeAbbey wsgi:application
+```
+
+It worked! But... there is one more problem according to logs. Django disallows running the site on `code-abbey.onrender.com`:
+
+```
+django.core.exceptions.DisallowedHost: Invalid HTTP_HOST header: 'code-abbey.onrender.com'. You may need to add 'code-abbey.onrender.com' to ALLOWED_HOSTS.
+```
+
+Qwerty again went to `code-abbey` repository and made required changes in CodeAbbey/CodeAbbey/settings.py:
+
+```
+- ALLOWED_HOSTS = []
++ ALLOWED_HOSTS = ['code-abbey.onrender.com']
+```
+
+And the website is live now!
+
+## Improvements for web site
+
+Yesterday, we ended up with a very simple site which just prints "Welcome to CodeAbbey!".
+
+Now, when the tricky part of deploying the web side is done, Qwerty feels that this is a time to make some improvements to our web site.
+
+First, Qwerty went to the version of site which is more famillar to us ([link to official site][codeabbey-official]) and started studying that version.
+
+What he noted at first glance:
+
+- The official site have a nice favicon, the current work does not.
+- There is a menu on top of page, the current work does not.
+- Below menu to the left there is a beautiful castle which absent at current work.
+- Below menu to the right there is "Top Brethren and Sistren of the Week" ranking, and below that ranking table there are links to forum posts. Again, this is not implemented in current work.
+
+Qwerty decided to work on these issues, as well as any other issues that may be discovered during a process.
+
+### Adding a favicon to the web site
+
+It is not hard to obtain favicon location by studying web page source code. Being at [codeabbey official][codeabbey-official], we can press `Ctrl U` and we see the following code:
+
+```
+<html lang="en">
+<head>
+    <title>CodeAbbey - programming problems to practice and learn for beginners</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="/img/icon.png"/>
+```
+
+The line we are interested in is:
+
+```
+<link rel="icon" type="image/png" href="/img/icon.png"/>
+```
+
+So, Qwerty downloaded favicon from "/img/icon.png" and started to think how he would serve this static file.
+
+According to [django documentation][django-static-files], to serve static files during development, one needs to define STATIC_URL in its settings file:
+
+```
+STATIC_URL = "static/"
+```
+
+As well as modifying template file accordingly, for example:
+
+```
+{% load static %}
+<img src="{% static 'my_app/example.jpg' %}" alt="My image">
+```
+
+As it turned out, STATIC_URL is already defined in settings file, so Qwerty only created and modified the template file `code-abbey/CodeAbbey/templates/app/index.html`:
+
+```
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CodeAbbey</title>
+    <meta name="author" content="Rodion Gorkovenko">
+    <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
+    {% endblock %}
+</head>
+<body>
+    <div>Welcome to CodeAbbey!</div>
+</body>
+</html>
+```
+
+And the `index` view in `code-abbey/CodeAbbey/app/views.py` was changed to use a template instead:
+
+```
+from django.shortcuts import render
+
+
+def index(request):
+    return render(request, 'app/index.html')
+```
+
+And the favicon itself was downloaded into `code-abbey/CodeAbbey/app/static/images/favicon.png`.
+
+And because he is working on static files anyway, Qwerty decided to add some nice styling as well to `code-abbey/CodeAbbey/app/static/styles/main.css`:
+
+```
+body {
+    font-family: Arial, serif;
+    font-size: 32px;
+}
+```
+
+It is time now to checkout repository to local machine and check if favicon works:
+
+```
+$ cd code-abbey
+~/code-abbey $ git pull https://Qwertyu89o:<MYTOKEN>@github.com/Qwertyu89o/code-abbey.git
+~/code-abbey $ source venv/bin/activate
+(venv) ~/code-abbey $ cd CodeAbbey
+(venv) ~/code-abbey/CodeAbbey $ python manage.py runserver
+```
+
+It did not work because of following reasons:
+
+Qwerty added an entry to ALLOWED_HOSTS and suddenly the address 127.0.0.1 stopped to work. It worked with empty ALLOWED_HOSTS list, but now this list is not empty, and the address 127.0.0.1 is not an implicitly allowed host anymore...
+Qwerty had to add it to ALLOWED_HOSTS explicitly:
+
+```
+ALLOWED_HOSTS = ['127.0.0.1'] if DEBUG else ['code-abbey.onrender.com']
+```
+
+Django turned out to be not too smart to find a newly created folder for templates. Qwerty helped Django to find that folder with the following entry in settings.py:
+
+```
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],
+```
+
+Now static files are working properly when testing on local machine. Unfortunately, this is not the case for production site, so Qwerty needed to learn more on serving static files on production server.
+
+After reading the docs at <https://docs.render.com/deploy-django>, he decided to do following:
+
+Add the following dependencies to `requirements.txt`:
+
+```
+asgiref==3.8.1
+Brotli==1.1.0
+click==8.1.7
+colorama==0.4.6
+dj-database-url==2.2.0
+Django==5.0.6
+gunicorn==22.0.0
+h11==0.14.0
+packaging==24.0
+psycopg2-binary==2.9.9
+sqlparse==0.5.0
+typing_extensions==4.12.2
+tzdata==2024.1
+uvicorn==0.30.1
+whitenoise==6.6.0
+```
+
+Update `settings.py` with PostgreSQL database settings.
+
+```
+if DEBUG:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+else:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default='postgresql://postgres:postgres@localhost:5432/mysite',
+            conn_max_age=600
+        )
+    }
+```
+
+Add WhiteNoise to serve static assets:
+
+```
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    ...
+]
+```
+
+Create a `build.sh` file to prepare site for production:
+
+```
+#!/usr/bin/env bash
+# Exit on error
+set -o errexit
+
+pip install -r requirements.txt
+
+# Convert static asset files
+python manage.py collectstatic --no-input
+
+# Apply any outstanding database migrations
+python manage.py migrate
+```
+
+Qwerty also paid attention to the security notices in documentation and set up a secret key and a conditional to switch off debug mode:
+
+```
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.getenv('SECRET_KEY')
+```
+
+```
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = os.getenv('ABBEY_PRODUCTION_SERVER') is None
+```
+
+After these actions, he tested the new configuration on local machine and was satisfied with that the site still runs on local machine.
+
+Then Qwerty set up database which is mentioned in docs. He went to <https://dashboard.render.com/new/database>, and filled in fields:
+
+- Name: codeabbey_postgresql
+- Database: codeabbey_db
+- User: codeabbey_admin
+- Region: Oregon (US West)
+- PostgreSQL Version: 16
+- Instance Type: Free (The database does not allow backups and self-destroys after 30 days, effectively requiring a creation of new one from scratch. It expires on July 9, 2024).
+
+And he also set up environment variables on <https://dashboard.render.com/web/{some_token}/env>: SECRET_KEY, DATABASE_URL, WEB_CONCURRENCY and ABBEY_PRODUCTION_SERVER (instead of ABBEY_PRODUCTION_SERVER he could use environment variable RENDER, which is provided by render.com automatically, but this means less portability of code between different hosting providers).
+
+Finally, Qwerty pulled the code to local machine, changed build.sh file permissions as follows:
+
+```
+chmod a+x build.sh
+```
+
+And pushed the file back to repository. He then deployed the repository to production server and now favicon is showing and styles are applied. This was great!
+
+### Adding a beautiful castle
+
+Unlike adding favicon, it wasn't necessary to view source code in order to obtain resource. One can just right-click on image and choose "Save image as...". The problem is how to position image to the left of ranking table, but Qwerty decided to postpone this problem later. For now, he just added image to web page instead of "Welcome to Codeabbey":
+
+```
+{% load static %}
+...
+{% block body %}
+	<img src="{% static 'images/facade.gif' %}" alt="Abbey of coding problems">
+{% endblock %}
+```
+
+### Adding ranking of top brethren and sistren of the week
+
+Qwerty feels that this task is a complex one...
+
+First, opensource version of site does not have any real users. How can we work around this?
+Possibly by adding some fake users...
+
+Second, the ranking table is not just a table, it uses some complex CSS styling.
+Qwerty had to study styles carefully to be close to original.
+
+Okay, so Qwerty opened the [official][codeabbey-official] source code and it looked like this:
+
+```
+    <div class="strong">Top Brethren and Sistren of the Week</div>
+    <a href="/index/user_ranking">(see best of all times)</a><br/>
+    <table class="table table-striped table-condensed table-bordered full-width">
+        <thead>
+            <tr class="centered">
+                <th>User</th>
+                <th title="Level">Rank</th>
+                <th title="Solved during last 7 days">Solved</th>
+            </tr>
+        </thead>
+        <tbody id="table-week-top">
+        </tbody>
+    </table>
+```
+
+No embedded styles, but a lot of classes, and they have interesting styles. For example, let us check how table stripes were implemented in `bs-cm.css`:
+
+```
+.table-striped>tbody>tr:nth-child(odd)>td, .table-striped>tbody>tr:nth-child(odd)>th {
+    background-color: #e4eeff;
+}
+```
+
+`table-condensed` stands for:
+
+```
+.table-condensed>thead>tr>th,.table-condensed>tbody>tr>th,.table-condensed>tfoot>tr>th,.table-condensed>thead>tr>td,.table-condensed>tbody>tr>td,.table-condensed>tfoot>tr>td{
+    padding:5px
+}
+```
+
+`table-bordered` means:
+
+```
+.table-bordered th,.table-bordered td{
+    border:1px solid #ddd!important
+}
+.table-bordered{
+    border:1px solid #ddd
+}
+.table-bordered>thead>tr>th,.table-bordered>thead>tr>td{
+    border-bottom-width:2px
+}
+```
+
+Since we are not sure yet, if we need the whole Bootstrap on opensource version, Qwerty decided to create a separate `table.css` file with above rules and place a link to stylesheet.
+
+Another tricky thing were these coloured rankings. After some investigation, Qwerty figured out that classes responsible for ranking colors are defined in document sent by `index/api_weekbest` API endpoint. They look like `rank rank1`, `rank rank2`, ..., `rank rankN` and defined in the same `bs-cm.css` file like:
+
+```
+.rank {
+    font-weight: bold;
+    background-repeat: no-repeat;
+    background-size: 16px;
+}
+.rank0 {
+    color: #888;
+}
+.rank1 {
+    color: #4f4;
+}
+...
+```
+
+Qwerty quickly took these styles and wrote then to `ranks.css` file. And he thinks that colors in these styles are chosen really well, except for `rank1`, for which he changed color from #4f4 to #4d4.
+
+### Adding a menu on top of page
+
+After several hours of googling, Qwerty finally figured out how to compose the menu: <https://www.w3schools.com/css/tryit.asp?filename=trycss_inline-block_nav>
+
+He created a new CSS file named `layout.css` and placed styles from W3Schools example to that file.
+
+### Composing image and table
+
+This was suprisingly hard, and Qwerty probably would never make a dream possible, but [Flex containers][flex-containers] saved the day for him.
+
+## Summary
+
+So, the simple sketch of CodeAbbey main page is done. This does not sound like much, but Qwerty hopes that this is just a beginning.
+
+
+
+[codeabbey-official]: <https://www.codeabbey.com/> "CodeAbbey official site"
+
+[django-tutorial]: <https://docs.djangoproject.com/en/stable/intro/tutorial01/> "Django official tutorial"
+
+[django-static-files]: <https://docs.djangoproject.com/en/5.0/howto/static-files/> "Management of static files in Django"
+
+[flex-containers]: <https://www.w3.org/TR/css-flexbox-1/#flex-containers> "Flex containers"
